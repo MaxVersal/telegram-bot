@@ -4,7 +4,10 @@ import lombok.extern.log4j.Log4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import telegram.logic.service.UpdateProducer;
 import telegram.logic.utils.MessageUtils;
+
+import static org.telegram.model.RabbitQueue.*;
 
 @Component
 @Log4j
@@ -13,8 +16,11 @@ public class UpdateController {
 
     private MessageUtils messageUtils;
 
-    public UpdateController(MessageUtils messageUtils) {
+    private UpdateProducer updateProducer;
+
+    public UpdateController(MessageUtils messageUtils, UpdateProducer updateProducer) {
         this.messageUtils = messageUtils;
+        this.updateProducer = updateProducer;
     }
 
     public void registerBot(TelegramBot telegramBot) {
@@ -26,7 +32,6 @@ public class UpdateController {
             log.error("Received update is null");
             return;
         }
-
         if (update.getMessage() != null) {
             distributeMessageByType(update);
         } else {
@@ -56,13 +61,24 @@ public class UpdateController {
         telegramBot.sendAnswerMessage(sendMessage);
     }
 
-    private void processPhotoMessage(Update update) {
+    private void setFileReceiveView(Update update) {
+        var sendMessage = messageUtils.generateSendMessageWithText(update,
+                "File received! Processing...");
+        setView(sendMessage);
     }
 
+    private void processPhotoMessage(Update update) {
+        updateProducer.produce(PHOTO_MESSAGE_UPDATE, update);
+        setFileReceiveView(update);
+    }
+
+
     private void processDocMessage(Update update) {
+        updateProducer.produce(DOC_MESSAGE_UPDATE, update);
+        setFileReceiveView(update);
     }
 
     private void processTextMessage(Update update) {
-
+        updateProducer.produce(TEXT_MESSAGE_UPDATE, update);
     }
 }
